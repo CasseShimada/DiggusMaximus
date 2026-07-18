@@ -1,77 +1,142 @@
 package net.kyrptonaught.diggusmaximus;
 
-import net.fabricmc.fabric.api.event.player.PlayerBlockBreakEvents;
-import net.minecraft.entity.player.PlayerEntity;
-import net.minecraft.item.Item;
-import net.minecraft.registry.Registries;
-import net.minecraft.server.network.ServerPlayerEntity;
-import net.minecraft.util.Identifier;
-import net.minecraft.util.math.BlockPos;
-import net.minecraft.util.math.Direction;
-import net.minecraft.world.World;
+import net.minecraft.core.BlockPos;
+import net.minecraft.core.Direction;
+import net.minecraft.core.registries.BuiltInRegistries;
+import net.minecraft.resources.Identifier;
+import net.minecraft.server.level.ServerLevel;
+import net.minecraft.server.level.ServerPlayer;
+import net.minecraft.world.item.Item;
 
 import java.util.ArrayDeque;
 import java.util.Deque;
+import java.util.HashSet;
+import java.util.Set;
+import java.util.UUID;
 
-public class Excavate {
+/** Executes one bounded excavation entirely through the vanilla server block-break path. */
+public final class Excavate {
     private final BlockPos startPos;
-    private final PlayerEntity player;
-    private Identifier startID;
+    private final ServerPlayer player;
+    private final Identifier startID;
     private final Item startTool;
-    private int mined = 0;
-    private final World world;
-    private final Deque<BlockPos> points = new ArrayDeque<>();
-
+    private final ServerLevel world;
     private final Direction facing;
-    private int shapeSelection = -1;
+    private final int shapeSelection;
+    private final Set<UUID> seedDropIds;
+    private final Deque<BlockPos> points = new ArrayDeque<>();
+    private final Set<BlockPos> visited = new HashSet<>();
+    private int mined;
 
-    private static final int airHash = new Identifier("minecraft:air").hashCode();
-
-    public Excavate(BlockPos pos, Identifier blockID, PlayerEntity player, Direction facing) {
-        this.startPos = pos;
+    public Excavate(
+            BlockPos pos,
+            Identifier blockID,
+            Item startTool,
+            ServerPlayer player,
+            Direction facing,
+            int shapeSelection,
+            Set<UUID> seedDropIds
+    ) {
+        this.startPos = pos.immutable();
         this.player = player;
-        this.world = player.getEntityWorld();
-        if (ExcavateHelper.configAllowsMining(blockID.toString()))
-            this.startID = blockID;
-
-        this.startTool = player.getMainHandStack().getItem();
+        this.world = player.level();
+        this.startID = ExcavateHelper.configAllowsMining(blockID.toString()) ? blockID : null;
+        this.startTool = startTool;
         this.facing = facing;
-    }
-
-    public void startExcavate(int shapeSelection) {
         this.shapeSelection = shapeSelection;
-        forceExcavateAt(startPos);
-        if (startID == null) return;
-        ((DiggingPlayerEntity) player).setExcavating(true);
-        while (!points.isEmpty()) {
-            spread(points.remove());
+        this.seedDropIds = seedDropIds;
+    }
+
+    public void startExcavate() {
+        startExcavate(false);
+    }
+
+    /**
+     * Runs the packet-selected mode and, when requested, the legacy sneak mode as a second phase.
+     * Both phases share one visited set and one configured block limit so a combined trigger cannot
+     * bypass maxMinedBlocks.
+     */
+    public void startExcavate(boolean includeSneakPhase) {
+        if (((DiggingPlayerEntity) player).diggus$isExcavating() || player.level() != world) {
+            return;
         }
-        ((DiggingPlayerEntity) player).setExcavating(false);
-    }
 
-    private void spread(BlockPos pos) {
-        for (BlockPos dirPos : ExcavateTypes.getSpreadType(shapeSelection, facing, startPos, pos)) {
-            if (ExcavateHelper.isValidPos(dirPos))
-                excavateAt(pos.add(dirPos));
+        if (DiggusMaximusMod.getOptions().autoPickup) {
+            ExcavateHelper.pickupDrops(world, startPos, player, seedDropIds);
+        }
+        if (startID == null) {
+            if (includeSneakPhase && DiggusMaximusMod.getOptions().autoPickup) {
+                ExcavateHelper.pickupDrops(world, startPos, player);
+            }
+            return;
+        }
+
+        points.add(startPos);
+        visited.add(startPos);
+        mined = 1; // The player's original block counts toward the configured maximum, as before.
+
+        DiggingPlayerEntity diggingPlayer = (DiggingPlayerEntity) player;
+        diggingPlayer.diggus$setExcavating(true);
+        try {
+            while (!points.isEmpty() && mined < ExcavateHelper.maxMined() && player.level() == world) {
+                spread(points.removeFirst(), shapeSelection);
+            }
+
+            if (includeSneakPhase && player.level() == world) {
+                // The old server-only sneak hook ran after the vanilla seed break, so it could
+                // collect the seed's new drop after the pre-break packet phase had intentionally
+                // ignored it.
+                if (DiggusMaximusMod.getOptions().autoPickup) {
+                    ExcavateHelper.pickupDrops(world, startPos, player);
+                }
+                points.addLast(startPos);
+                while (!points.isEmpty() && mined < ExcavateHelper.maxMined() && player.level() == world) {
+                    spread(points.removeFirst(), -1);
+                }
+            }
+        } finally {
+            diggingPlayer.diggus$setExcavating(false);
         }
     }
 
-    private void excavateAt(BlockPos pos) {
-        if (mined >= ExcavateHelper.maxMined) return;
-        Identifier block = Registries.BLOCK.getId(ExcavateHelper.getBlockAt(world, pos));
-        if (block.hashCode() != airHash && ExcavateHelper.isTheSameBlock(startID, block, world, shapeSelection) && ExcavateHelper.canMine(player, startTool, world, startPos, pos) && isExcavatingAllowed(pos)) {
-            forceExcavateAt(pos);
+    private void spread(BlockPos pos, int spreadSelection) {
+        for (BlockPos relative : ExcavateTypes.getSpreadType(spreadSelection, facing, startPos, pos)) {
+            if (ExcavateHelper.isValidOffset(relative)) {
+                excavateAt(pos.offset(relative), spreadSelection);
+            }
         }
     }
 
-    private boolean isExcavatingAllowed(BlockPos pos) {
-        return PlayerBlockBreakEvents.BEFORE.invoker().beforeBlockBreak(world, player, pos, world.getBlockState(pos), world.getBlockEntity(pos)) && ((ServerPlayerEntity) player).interactionManager.tryBreakBlock(pos);
-    }
+    private void excavateAt(BlockPos pos, int activeSelection) {
+        BlockPos immutable = pos.immutable();
+        if (player.level() != world
+                || mined >= ExcavateHelper.maxMined()
+                || !visited.add(immutable)
+                || !world.hasChunkAt(immutable)) {
+            return;
+        }
 
-    private void forceExcavateAt(BlockPos pos) {
-        points.add(pos);
-        mined++;
-        if (DiggusMaximusMod.getOptions().autoPickup)
-            ExcavateHelper.pickupDrops(world, pos, player);
+        var state = world.getBlockState(immutable);
+        if (state.isAir()) {
+            return;
+        }
+        Identifier blockID = BuiltInRegistries.BLOCK.getKey(state.getBlock());
+        if (!ExcavateHelper.configAllowsMining(blockID.toString())
+                || !ExcavateHelper.isTheSameBlock(startID, blockID, activeSelection)
+                || !ExcavateHelper.canMine(player, startTool, world, startPos, immutable, state)) {
+            return;
+        }
+
+        // Fabric's break events, protection hooks, vanilla restrictions, loot, XP, enchantments and durability
+        // all run exactly once inside this method.
+        if (player.gameMode.destroyBlock(immutable)
+                && player.level() == world
+                && !world.getBlockState(immutable).equals(state)) {
+            points.addLast(immutable);
+            mined++;
+            if (DiggusMaximusMod.getOptions().autoPickup) {
+                ExcavateHelper.pickupDrops(world, immutable, player);
+            }
+        }
     }
 }

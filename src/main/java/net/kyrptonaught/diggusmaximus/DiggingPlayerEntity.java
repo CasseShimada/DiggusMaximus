@@ -1,7 +1,13 @@
 package net.kyrptonaught.diggusmaximus;
 
 public interface DiggingPlayerEntity {
-    Boolean isExcavating();
+    boolean diggus$isExcavating();
 
-    void setExcavating(boolean isExcavating);
+    void diggus$setExcavating(boolean excavating);
+
+    PendingExcavation diggus$getPendingExcavation();
+
+    void diggus$setPendingExcavation(PendingExcavation pending);
+
+    boolean diggus$tryConsumeRequestToken(long gameTime);
 }

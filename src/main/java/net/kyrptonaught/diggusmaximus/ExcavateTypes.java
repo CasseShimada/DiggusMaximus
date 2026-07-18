@@ -1,7 +1,7 @@
 package net.kyrptonaught.diggusmaximus;
 
-import net.minecraft.util.math.BlockPos;
-import net.minecraft.util.math.Direction;
+import net.minecraft.core.BlockPos;
+import net.minecraft.core.Direction;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -16,6 +16,10 @@ public class ExcavateTypes {
     public static List<BlockPos> getSpreadType(int shapeSelection, Direction facing, BlockPos startPos, BlockPos curPos) {
         if (shapeSelection == -1)
             return DiggusMaximusMod.getOptions().mineDiag ? ExcavateTypes.standardDiag : ExcavateTypes.standard;
+
+        if (shapeSelection < 0 || shapeSelection >= shape.values().length || facing == null) {
+            return ExcavateTypes.standard;
+        }
 
         switch (shape.values()[shapeSelection]) {
             case HOLE:
@@ -64,7 +68,7 @@ public class ExcavateTypes {
 
     public static List<BlockPos> hole(Direction facing) {
         List<BlockPos> cube = new ArrayList<>();
-        cube.add(BlockPos.ORIGIN.offset(facing.getOpposite()));
+        cube.add(BlockPos.ZERO.relative(facing.getOpposite()));
         return cube;
     }
 
@@ -105,8 +109,8 @@ public class ExcavateTypes {
 
     public static List<BlockPos> threebythreeTunnel(BlockPos startPos, BlockPos curPos, Direction facing) {
         List<BlockPos> cube = threebythree(startPos, curPos, facing);
-        cube.add(BlockPos.ORIGIN.offset(facing.getOpposite()));
-        cube.addAll(cube.stream().map(blockPos -> blockPos.offset(facing.getOpposite())).collect(Collectors.toList()));
+        cube.add(BlockPos.ZERO.relative(facing.getOpposite()));
+        cube.addAll(cube.stream().map(blockPos -> blockPos.relative(facing.getOpposite())).collect(Collectors.toList()));
         return cube;
     }
 
@@ -136,6 +140,6 @@ public class ExcavateTypes {
         standard.add(new BlockPos(0, 0, -1));
         standard.add(new BlockPos(-1, 0, 0));
 
-        standardDiag.addAll(BlockPos.stream(-1, -1, -1, 1, 1, 1).map(BlockPos::toImmutable).collect(Collectors.toList()));
+        standardDiag.addAll(BlockPos.betweenClosedStream(-1, -1, -1, 1, 1, 1).map(BlockPos::immutable).collect(Collectors.toList()));
     }
 }

@@ -1,7 +1,7 @@
 {
   "schemaVersion": 1,
   "id": "diggusmaximus",
-  "version": "1.5.9-1.20",
+  "version": "${version}",
   "name": "Diggus Maximus",
   "description": "Mine ores more better!",
   "authors": [
@@ -17,6 +17,10 @@
   "mixins": [
     {
       "config": "diggusmaximus.mixins.json"
+    },
+    {
+      "config": "diggusmaximus.client.mixins.json",
+      "environment": "client"
     }
   ],
   "entrypoints": {
@@ -31,8 +35,12 @@
     ]
   },
   "depends": {
-    "fabricloader": ">=0.12.5",
-    "fabric": "*",
-    "java": ">=17"
+    "fabricloader": ">=${loader_version}",
+    "fabric-api": ">=${fabric_version}",
+    "minecraft": "=${minecraft_version}",
+    "java": ">=25"
+  },
+  "suggests": {
+    "modmenu": ">=20.0.1"
   }
 }

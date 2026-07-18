@@ -2,22 +2,35 @@ package net.kyrptonaught.diggusmaximus.mixin;
 
 import net.kyrptonaught.diggusmaximus.DiggingPlayerEntity;
 import net.kyrptonaught.diggusmaximus.DiggusMaximusMod;
-import net.minecraft.item.ItemStack;
-import net.minecraft.server.network.ServerPlayerEntity;
-import net.minecraft.util.math.random.Random;
+import net.minecraft.server.level.ServerLevel;
+import net.minecraft.server.level.ServerPlayer;
+import net.minecraft.world.item.Item;
+import net.minecraft.world.item.ItemStack;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.injection.At;
 import org.spongepowered.asm.mixin.injection.Inject;
-import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
+import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 
+import java.util.function.Consumer;
 
 @Mixin(ItemStack.class)
 public class MixinCancelDurability {
-
-    @Inject(method = "damage(ILnet/minecraft/util/math/random/Random;Lnet/minecraft/server/network/ServerPlayerEntity;)Z", at = @At(value = "HEAD"), cancellable = true)
-    private void DIGGUS$CANCELDURABILITY(int amount, Random random, ServerPlayerEntity player, CallbackInfoReturnable<Boolean> cir) {
-        if (player != null && ((DiggingPlayerEntity) player).isExcavating() && !DiggusMaximusMod.getOptions().toolDurability)
-            cir.setReturnValue(false);
-
+    @Inject(
+            method = "hurtAndBreak(ILnet/minecraft/server/level/ServerLevel;Lnet/minecraft/server/level/ServerPlayer;Ljava/util/function/Consumer;)V",
+            at = @At("HEAD"),
+            cancellable = true
+    )
+    private void diggus$cancelExcavationDurability(
+            int amount,
+            ServerLevel level,
+            ServerPlayer player,
+            Consumer<Item> onBreak,
+            CallbackInfo ci
+    ) {
+        if (player != null
+                && ((DiggingPlayerEntity) player).diggus$isExcavating()
+                && !DiggusMaximusMod.getOptions().toolDurability) {
+            ci.cancel();
+        }
     }
 }

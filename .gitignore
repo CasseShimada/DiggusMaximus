@@ -1,8 +1,5 @@
-# Created by https://www.gitignore.io/api/java,gradle,windows,intellij,forgegradle
-# Edit at https://www.gitignore.io/?templates=java,gradle,windows,intellij,forgegradle
-
-### ForgeGradle ###
-# Minecraft client/server files
+# Project ignore rules for Java, Gradle, Windows, IntelliJ and generated Minecraft runs.
+# Minecraft client/server run files
 run/
 
 ### Intellij ###
@@ -95,6 +92,7 @@ fabric.properties
 
 # Log file
 *.log
+*.log.gz
 
 # BlueJ files
 *.ctxt
@@ -184,4 +182,4 @@ Icon
 Network Trash Folder
 Temporary Items
 .apdisk
-# End of https://www.gitignore.io/api/java,gradle,windows,intellij,forgegradle
+# End of project ignore rules

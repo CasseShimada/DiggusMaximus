@@ -1,0 +1,66 @@
+name: Release beta
+
+on:
+  push:
+    tags:
+      - "v*-beta.*"
+
+permissions:
+  contents: write
+
+jobs:
+  build-and-release:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out tagged source
+        uses: actions/checkout@v7.0.0
+
+      - name: Set up Java 25
+        uses: actions/setup-java@v5.6.0
+        with:
+          distribution: temurin
+          java-version: "25"
+
+      - name: Set up Gradle
+        uses: gradle/actions/setup-gradle@v6.2.0
+
+      - name: Verify tag matches the mod version
+        shell: bash
+        run: |
+          version="$(sed -n 's/^mod_version=//p' gradle.properties)"
+          expected="v${version}"
+          if [[ "${GITHUB_REF_NAME}" != "${expected}" ]]; then
+            echo "Tag ${GITHUB_REF_NAME} does not match mod_version ${version}." >&2
+            exit 1
+          fi
+
+      - name: Build the release JAR
+        shell: bash
+        run: |
+          chmod +x gradlew
+          ./gradlew clean build --no-daemon --console=plain
+
+      - name: Locate the remapped release JAR
+        id: release_jar
+        shell: bash
+        run: |
+          version="$(sed -n 's/^mod_version=//p' gradle.properties)"
+          jar="build/libs/diggusmaximus-${version}.jar"
+          if [[ ! -f "${jar}" ]]; then
+            echo "Expected release JAR was not built: ${jar}" >&2
+            exit 1
+          fi
+          echo "path=${jar}" >> "${GITHUB_OUTPUT}"
+
+      - name: Create the GitHub prerelease
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          gh release create "${GITHUB_REF_NAME}" \
+            "${{ steps.release_jar.outputs.path }}" \
+            --verify-tag \
+            --prerelease \
+            --latest=false \
+            --generate-notes \
+            --title "Diggus Maximus ${GITHUB_REF_NAME#v}"

@@ -1,50 +1,68 @@
 package net.kyrptonaught.diggusmaximus;
 
-import net.minecraft.block.Block;
-import net.minecraft.entity.ItemEntity;
-import net.minecraft.entity.player.PlayerEntity;
-import net.minecraft.item.Item;
-import net.minecraft.item.ItemStack;
-import net.minecraft.predicate.entity.EntityPredicates;
-import net.minecraft.registry.Registries;
-import net.minecraft.util.Identifier;
-import net.minecraft.util.math.BlockPos;
-import net.minecraft.util.math.Box;
-import net.minecraft.world.World;
+import net.minecraft.core.BlockPos;
+import net.minecraft.core.component.DataComponents;
+import net.minecraft.core.registries.BuiltInRegistries;
+import net.minecraft.resources.Identifier;
+import net.minecraft.server.level.ServerLevel;
+import net.minecraft.server.level.ServerPlayer;
+import net.minecraft.world.entity.item.ItemEntity;
+import net.minecraft.world.item.Item;
+import net.minecraft.world.item.ItemStack;
+import net.minecraft.world.item.component.Tool;
+import net.minecraft.world.level.block.state.BlockState;
+import net.minecraft.world.phys.AABB;
 
-import java.util.List;
+import java.util.HashSet;
+import java.util.Set;
+import java.util.UUID;
 
-public class ExcavateHelper {
-    static int maxMined = Math.min(DiggusMaximusMod.getOptions().maxMinedBlocks, 2048);
-    private static double maxDistance = Math.min(DiggusMaximusMod.getOptions().maxMineDistance + 1, 128);
+public final class ExcavateHelper {
+    private static int maxMined = 40;
+    private static double maxDistance = 11;
+
+    private ExcavateHelper() {
+    }
 
     public static void resetMaximums() {
-        maxMined = Math.min(DiggusMaximusMod.getOptions().maxMinedBlocks, 2048);
-        maxDistance = Math.min(DiggusMaximusMod.getOptions().maxMineDistance + 1, 128);
+        maxMined = Math.clamp(DiggusMaximusMod.getOptions().maxMinedBlocks, 1, 2048);
+        maxDistance = Math.clamp(DiggusMaximusMod.getOptions().maxMineDistance + 1.0, 1.0, 128.0);
     }
 
-    static void pickupDrops(World world, BlockPos pos, PlayerEntity player) {
-        List<ItemEntity> drops = world.getEntitiesByClass(ItemEntity.class, new Box(pos), EntityPredicates.VALID_ENTITY);
-        drops.forEach(item -> {
-            ItemStack stack = item.getStack();
-            player.getInventory().insertStack(stack);
-            if (stack.getCount() <= 0)
-                item.discard();
-        });
-
+    static int maxMined() {
+        return maxMined;
     }
 
-    static boolean isTheSameBlock(Identifier startID, Identifier newID, World world, int shapeSelection) {
-        if (shapeSelection > -1 && DiggusMaximusMod.getExcavatingShapes().includeDifBlocks)
+    static void pickupDrops(ServerLevel world, BlockPos pos, ServerPlayer player) {
+        pickupDrops(world, pos, player, null);
+    }
+
+    static void pickupDrops(ServerLevel world, BlockPos pos, ServerPlayer player, Set<UUID> eligibleIds) {
+        for (ItemEntity entity : world.getEntitiesOfClass(
+                ItemEntity.class,
+                new AABB(pos),
+                entity -> entity.isAlive() && (eligibleIds == null || eligibleIds.contains(entity.getUUID()))
+        )) {
+            ItemStack stack = entity.getItem();
+            player.getInventory().add(stack);
+            if (stack.isEmpty()) {
+                entity.discard();
+            }
+        }
+    }
+
+    public static Set<UUID> itemEntityIds(ServerLevel world, BlockPos pos) {
+        Set<UUID> result = new HashSet<>();
+        for (ItemEntity entity : world.getEntitiesOfClass(ItemEntity.class, new AABB(pos), ItemEntity::isAlive)) {
+            result.add(entity.getUUID());
+        }
+        return result;
+    }
+
+    static boolean isTheSameBlock(Identifier startID, Identifier newID, int shapeSelection) {
+        if (shapeSelection >= 0 && DiggusMaximusMod.getExcavatingShapes().includeDifBlocks) {
             return true;
-
-        // Not sure if this makes sense anymore with the all the tags that exist now. For example this will now consider bamboo and all types of dirt as the same block since they are all in "bamboo_plantable_on"
-        /* if (DiggusMaximusMod.getGrouping().tagGrouping) {
-            Block newBlock = Registry.BLOCK.get(newID);
-            if (Registry.BLOCK.get(startID).getRegistryEntry().streamTags().anyMatch(blockTagKey1 -> newBlock.getRegistryEntry().isIn(blockTagKey1)))
-                newID = startID;
-
-        } */
+        }
         if (DiggusMaximusMod.getGrouping().customGrouping) {
             newID = DiggusMaximusMod.getIDFromConfigLookup(newID);
             startID = DiggusMaximusMod.getIDFromConfigLookup(startID);
@@ -52,43 +70,60 @@ public class ExcavateHelper {
         return startID.equals(newID);
     }
 
-
     static boolean configAllowsMining(String blockID) {
         return DiggusMaximusMod.getBlackList().isWhitelist == DiggusMaximusMod.getBlackList().lookup.contains(blockID);
     }
 
-    static boolean isValidPos(BlockPos pos) {
-        return (Math.abs(pos.getX()) + Math.abs(pos.getY()) + Math.abs(pos.getZ())) != 0;
+    static boolean isValidOffset(BlockPos pos) {
+        return pos.getX() != 0 || pos.getY() != 0 || pos.getZ() != 0;
     }
 
-    static Block getBlockAt(World world, BlockPos pos) {
-        return (world.getBlockState(pos).getBlock());
+    static boolean canMine(ServerPlayer player, Item startTool, ServerLevel world, BlockPos startPos, BlockPos pos, BlockState state) {
+        return pos.closerThan(startPos, maxDistance)
+                && player.level() == world
+                && checkTool(player, startTool, world, pos, state)
+                && world.mayInteract(player, pos)
+                && world.isInsideBuildHeight(pos)
+                && state.getDestroySpeed(world, pos) >= 0.0F;
     }
 
-    static boolean canMine(PlayerEntity player, Item tool, World world, BlockPos startPos, BlockPos pos) {
-        return isWithinDistance(startPos, pos) && checkTool(player, tool) && isBreakableBlock(getBlockAt(world, pos));
-    }
-
-    private static boolean isBreakableBlock(Block block) {
-        return block.getHardness() >= 0;
-    }
-
-    private static boolean isWithinDistance(BlockPos startPos, BlockPos pos) {
-        return pos.isWithinDistance(startPos, maxDistance);
-    }
-
-    private static boolean checkTool(PlayerEntity player, Item tool) {
-        if (player.isCreative()) return true;
-        ItemStack heldItem = player.getMainHandStack();
-        if (DiggusMaximusMod.getOptions().dontBreakTool && heldItem.getDamage() + 1 == tool.getMaxDamage())
+    private static boolean checkTool(
+            ServerPlayer player,
+            Item startTool,
+            ServerLevel world,
+            BlockPos pos,
+            BlockState state
+    ) {
+        if (player.isCreative()) {
+            return true;
+        }
+        ItemStack held = player.getMainHandItem();
+        int expectedDamage = expectedMiningDamage(held, world, pos, state);
+        if (DiggusMaximusMod.getOptions().dontBreakTool
+                && held.isDamageableItem()
+                && expectedDamage > 0
+                && held.getDamageValue() + expectedDamage >= held.getMaxDamage()) {
             return false;
-        if (heldItem.getItem() != tool)
-            if (DiggusMaximusMod.getOptions().stopOnToolBreak || DiggusMaximusMod.getOptions().requiresTool)
-                return false;
-        return isTool(heldItem.getItem()) || !DiggusMaximusMod.getOptions().requiresTool;
+        }
+        if (held.getItem() != startTool
+                && (DiggusMaximusMod.getOptions().stopOnToolBreak || DiggusMaximusMod.getOptions().requiresTool)) {
+            return false;
+        }
+        return isTool(held) || !DiggusMaximusMod.getOptions().requiresTool;
     }
 
-    private static boolean isTool(Item isTool) {
-        return isTool.isDamageable() || DiggusMaximusMod.getOptions().tools.contains(Registries.ITEM.getId(isTool).toString());
+    private static int expectedMiningDamage(ItemStack stack, ServerLevel world, BlockPos pos, BlockState state) {
+        if (!DiggusMaximusMod.getOptions().toolDurability || state.getDestroySpeed(world, pos) == 0.0F) {
+            return 0;
+        }
+        Tool tool = stack.get(DataComponents.TOOL);
+        // Legacy code treated every damageable custom item as costing one durability. Keep that
+        // conservative fallback for modded items which override mining without a TOOL component.
+        return tool == null ? (stack.isDamageableItem() ? 1 : 0) : Math.max(tool.damagePerBlock(), 0);
+    }
+
+    private static boolean isTool(ItemStack stack) {
+        return stack.has(DataComponents.MAX_DAMAGE)
+                || DiggusMaximusMod.getOptions().tools.contains(BuiltInRegistries.ITEM.getKey(stack.getItem()).toString());
     }
 }

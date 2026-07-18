@@ -1,8 +1,10 @@
 {
   "key.categories.diggusmaximus": "Diggus Maximus",
+  "key.category.diggusmaximus.category": "Diggus Maximus",
   "key.diggusmaximus.keybind.excavate": "Excavate",
   "key.diggusmaximus.keybind.shapeexcavate": "Shape Excavate",
   "key.diggusmaximus.keybind.cycleshape": "Cycle Shape",
+  "key.diggusmaximus.keybind.config": "Open Config",
   "key.diggusmaximus.config.category": "Options",
   "key.diggusmaximus.config.enabled": "Enabled",
   "key.diggusmaximus.config.hotkey": "Keybind",
