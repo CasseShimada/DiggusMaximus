@@ -2,14 +2,14 @@
 
 ## 文档状态
 
-- 当前阶段：`VERIFICATION`
-- 最后更新时间：2026-07-18 16:30 +08:00
+- 当前阶段：`COMPLETE`
+- 最后更新时间：2026-07-18 16:37 +08:00
 - 当前分支：`26.2`
 - 基准提交：`f754514fe1d99eace48d3e777d7d50828c869b9b`（`f754514`）
-- 当前提交/工作树：从干净的 `1.19` 基准创建 `26.2`；迁移修改均保留在工作树，未暂存、未提交、未 push，未覆盖无关用户修改。
-- 已完成事项：迁移实现、旧配置语义兼容层、原生 GUI、客户端/公共源码拆分、typed payload、服务端原版破坏绑定和 26.2 Mixin 迁移均已实现。深度复核缺陷均已修复；beta `1.5.9-beta.1+26.2` 已连续两次干净构建，15 个 JUnit、两套运行依赖与最终 JAR 三层扫描、带 Mod Menu 20.0.1 的完整 GameTest，以及目标整合包新隔离副本的真实玩家功能/保存/重启验证均通过。
-- 下一项可直接执行的操作：暂存并提交当前完整迁移与 beta Action，push `26.2`，再推送 `v1.5.9-beta.1+26.2` 标签触发远端 prerelease；等待并核对 GitHub Actions、release 标志和上传 JAR 哈希。
-- 未解决问题和阻塞项：无 Diggus 迁移阻塞；仅远端 beta Action 尚待触发和验证。目标存档/模组集自身的 Farmers Delight 缺失注册项已由用户明确排除在本模组维护范围外。
+- 当前提交/工作树：完整迁移提交 `c283f139a7d9e12eb65d233fbaee42800b0298d9` 已推送到 `origin/26.2`；beta 标签 `v1.5.9-beta.1+26.2` 固定指向该提交。发布记录随分支后续文档提交保存，未覆盖无关用户修改。
+- 已完成事项：迁移实现、旧配置语义兼容层、原生 GUI、客户端/公共源码拆分、typed payload、服务端原版破坏绑定和 26.2 Mixin 迁移均已实现。深度复核缺陷均已修复；beta `1.5.9-beta.1+26.2` 已连续两次干净构建，15 个 JUnit、两套运行依赖与最终 JAR 三层扫描、带 Mod Menu 20.0.1 的完整 GameTest，以及目标整合包新隔离副本的真实玩家功能/保存/重启验证均通过。GitHub Actions 又在 Ubuntu/Java 25 上从 beta 标签重新构建，并成功创建已核验的非草稿 prerelease。
+- 下一项可直接执行的操作：由用户在 Minecraft 26.2 / Fabric Loader 0.19.3+ 环境安装 beta 进行日常游玩反馈；发现 Diggus 自身问题时在 `26.2` 分支修复并发布后续 beta。
+- 未解决问题和阻塞项：无 Diggus 迁移或发布阻塞。目标存档/模组集自身的 Farmers Delight 缺失注册项已由用户明确排除在本模组维护范围外。
 
 ## 项目基线
 
@@ -308,3 +308,12 @@
 - 产物：`build/libs/diggusmaximus-1.5.9-beta.1+26.2.jar`，96,109 字节，SHA-256 `1F4F78A2F446058358627358A702F4A9BAB6435638708A0086FBF842D103CB6E`；50 条目、无嵌套/测试/禁用框架内容。最终日志 SHA-256 `8E9D6BEA3C6D405E163549265203646FE8C81373822D0B6F701D2A1315232429`。
 - 等价性：与目标世界真实玩家验证使用的 `1.5.9+26.2` JAR相比，排除 `fabric.mod.json` 后其余 49 个条目逐项内容哈希完全一致；因此 beta 只改变发布版本元数据，不改变已在目标世界验证的生产字节码/资源。
 - 下一步：暂存并提交全部迁移和工作流，push 分支与 beta 标签，等待远端 Action 重新构建并核验 prerelease/资产哈希。
+
+### 2026-07-18 16:31–16:37 +08:00 — beta 提交、远端构建与 prerelease 发布完成
+
+- Git：49 个迁移/测试/审计/工作流文件已提交为 `c283f139a7d9e12eb65d233fbaee42800b0298d9`（`Migrate Diggus Maximus to Minecraft 26.2 beta`）并推送到 `origin/26.2`；annotated tag `v1.5.9-beta.1+26.2` 已推送且精确指向该提交。
+- Action：标签 push 触发 `Release beta` run `29637631608`；唯一 job `build-and-release` 的 checkout、Java 25、Gradle、版本/标签一致性检查、clean build、JAR 定位和 prerelease 创建步骤全部成功，run 结论为 `success`。
+- Release：`Diggus Maximus 1.5.9-beta.1+26.2` 已于 16:34 +08:00 发布；`isDraft=false`、`isPrerelease=true`，唯一资产为 `diggusmaximus-1.5.9-beta.1+26.2.jar`，94,688 字节，GitHub/下载复算 SHA-256 均为 `02095D59F7A5863F534AF5704114A6BBBD23550DCD40345009CA691A5C286513`。
+- 远端产物复核：JAR 共 50 个 ZIP 条目（38 个文件、12 个目录）；`fabric.mod.json` 版本为 `1.5.9-beta.1+26.2`，精确依赖 Minecraft `=26.2`、Loader `>=0.19.3`、Fabric API `>=0.153.0+26.2`、Java `>=25`，Mod Menu 仅为 `suggests >=20.0.1`。远端与本地 JAR 的全部 class 文件内容相同；五个文本资源差异仅为 Windows CRLF 与 Ubuntu LF，manifest 差异仅为相同 client-only 条目集合的排列/折行顺序，因此无生产逻辑差异。
+- 链接：Action `https://github.com/CasseShimada/DiggusMaximus/actions/runs/29637631608`；prerelease `https://github.com/CasseShimada/DiggusMaximus/releases/tag/v1.5.9-beta.1%2B26.2`。
+- 状态：用户要求的审计、迁移、验证、暂存、提交、push 和通过 GitHub Actions 远端发布 beta 全部闭合，阶段恢复为 `COMPLETE`。
